@@ -21,7 +21,7 @@
 #define CRYPTO_MODE_DECRYPT (AES_CR_MODE_1)
 #define CRYPTO_MODE_DECRYPT_INIT (AES_CR_MODE_0 | AES_CR_MODE_1)
 
-#define CRYPTO_DATATYPE_32B 0U
+#define CRYPTO_DATATYPE_32B 4U
 #define CRYPTO_KEYSIZE_256B (AES_CR_KEYSIZE)
 #define CRYPTO_AES_CBC (AES_CR_CHMOD_0)
 
@@ -203,20 +203,20 @@ static void crypto_key_init(uint32_t* key, uint32_t* iv) {
         CRYPTO_DATATYPE_32B | CRYPTO_KEYSIZE_256B | CRYPTO_AES_CBC);
 
     if(key != NULL) {
-        AES1->KEYR7 = key[0];
-        AES1->KEYR6 = key[1];
-        AES1->KEYR5 = key[2];
-        AES1->KEYR4 = key[3];
-        AES1->KEYR3 = key[4];
-        AES1->KEYR2 = key[5];
-        AES1->KEYR1 = key[6];
-        AES1->KEYR0 = key[7];
+        AES1->KEYR7 = key[7];
+        AES1->KEYR6 = key[6];
+        AES1->KEYR5 = key[5];
+        AES1->KEYR4 = key[4];
+        AES1->KEYR3 = key[3];
+        AES1->KEYR2 = key[2];
+        AES1->KEYR1 = key[1];
+        AES1->KEYR0 = key[0];
     }
 
-    AES1->IVR3 = iv[0];
-    AES1->IVR2 = iv[1];
-    AES1->IVR1 = iv[2];
-    AES1->IVR0 = iv[3];
+    AES1->IVR3 = iv[3];
+    AES1->IVR2 = iv[2];
+    AES1->IVR1 = iv[1];
+    AES1->IVR0 = iv[0];
 }
 
 static bool furi_hal_crypto_wait_flag(uint32_t flag) {
