@@ -9,7 +9,7 @@ void crypto_cli_print_usage(void) {
     printf("crypto <cmd> <args>\r\n");
     printf("Cmd list:\r\n");
     printf(
-        "\tencrypt <key_slot:int> <iv:hex>\t - Using key from secure enclave and IV encrypt plain text with AES256CBC and encode to hex\r\n");
+        "\tencrypt <key_slot:int> <data_type:str> <iv:hex>\t - Using key from secure enclave and IV encrypt plain or hex text with AES256CBC and encode to hex\r\n");
     printf(
         "\tdecrypt <key_slot:int> <iv:hex>\t - Using key from secure enclave and IV decrypt hex encoded encrypted with AES256CBC data to plain text\r\n");
     printf("\thas_key <key_slot:int>\t - Check if secure enclave has key in slot\r\n");
@@ -21,10 +21,17 @@ void crypto_cli_encrypt(Cli* cli, FuriString* args) {
     int key_slot = 0;
     bool key_loaded = false;
     uint8_t iv[16];
+    FuriString* data_type;
+    data_type = furi_string_alloc();
 
     do {
         if(!args_read_int_and_trim(args, &key_slot) || !(key_slot > 0 && key_slot <= 100)) {
             printf("Incorrect or missing slot, expected int 1-100");
+            break;
+        }
+
+        if(!args_read_string_and_trim(args, data_type)) {
+            printf("Incorrect or missing data type, expected plain or hex");
             break;
         }
 
@@ -37,54 +44,107 @@ void crypto_cli_encrypt(Cli* cli, FuriString* args) {
             printf("Unable to load key from slot %d", key_slot);
             break;
         }
+
         key_loaded = true;
 
-        printf("Enter plain text and press Ctrl+C to complete encryption:\r\n");
-
-        FuriString* input;
-        input = furi_string_alloc();
-        char c;
-        while(cli_read(cli, (uint8_t*)&c, 1) == 1) {
-            if(c == CliSymbolAsciiETX) {
-                printf("\r\n");
-                break;
-            } else if(c >= 0x20 && c < 0x7F) {
-                putc(c, stdout);
-                fflush(stdout);
-                furi_string_push_back(input, c);
-            } else if(c == CliSymbolAsciiCR) {
-                printf("\r\n");
-                furi_string_cat(input, "\r\n");
-            }
-        }
-
-        size_t size = furi_string_size(input);
-        if(size > 0) {
-            // C-string null termination and block alignments
-            size++;
-            size_t remain = size % 16;
-            if(remain) {
-                size = size - remain + 16;
-            }
-            furi_string_reserve(input, size);
-            uint8_t* output = malloc(size);
-            if(!furi_hal_crypto_encrypt(
-                   (const uint8_t*)furi_string_get_cstr(input), output, size)) {
-                printf("Failed to encrypt input");
-            } else {
-                printf("Hex-encoded encrypted data:\r\n");
-                for(size_t i = 0; i < size; i++) {
-                    if(i % 80 == 0) printf("\r\n");
-                    printf("%02x", output[i]);
+        if(furi_string_cmp_str(data_type, "plain") == 0) {
+            printf("Enter plain text and press Ctrl+C to complete encryption:\r\n");
+            FuriString* input;
+            input = furi_string_alloc();
+            char c;
+            while(cli_read(cli, (uint8_t*)&c, 1) == 1) {
+                if(c == CliSymbolAsciiETX) {
+                    printf("\r\n");
+                    break;
+                } else if(c >= 0x20 && c < 0x7F) {
+                    putc(c, stdout);
+                    fflush(stdout);
+                    furi_string_push_back(input, c);
+                } else if(c == CliSymbolAsciiCR) {
+                    printf("\r\n");
+                    furi_string_cat(input, "\r\n");
                 }
-                printf("\r\n");
             }
-            free(output);
-        } else {
-            printf("No input");
-        }
 
-        furi_string_free(input);
+            size_t size = furi_string_size(input);
+            if(size > 0) {
+                // C-string null termination and block alignments
+                size++;
+                size_t remain = size % 16;
+                if(remain) {
+                    size = size - remain + 16;
+                }
+                furi_string_reserve(input, size);
+                uint8_t* output = malloc(size);
+                if(!furi_hal_crypto_encrypt(
+                       (const uint8_t*)furi_string_get_cstr(input), output, size)) {
+                    printf("Failed to encrypt input");
+                } else {
+                    printf("Hex-encoded encrypted data:\r\n");
+                    for(size_t i = 0; i < size; i++) {
+                        if(i % 80 == 0) printf("\r\n");
+                        printf("%02x ", output[i]);
+                    }
+                    printf("\r\n");
+                }
+                free(output);
+            } else {
+                printf("No input");
+            }
+
+            furi_string_free(input);
+        } else if(furi_string_cmp_str(data_type, "hex") == 0) {
+            printf("Enter Hex-encoded data and press Ctrl+C to complete encryption:\r\n");
+
+            FuriString* hex_input;
+            hex_input = furi_string_alloc();
+            char c;
+            while(cli_read(cli, (uint8_t*)&c, 1) == 1) {
+                if(c == CliSymbolAsciiETX) {
+                    printf("\r\n");
+                    break;
+                } else if(c >= 0x20 && c < 0x7F) {
+                    putc(c, stdout);
+                    fflush(stdout);
+                    furi_string_push_back(hex_input, c);
+                } else if(c == CliSymbolAsciiCR) {
+                    printf("\r\n");
+                }
+            }
+
+            furi_string_trim(hex_input);
+            size_t hex_size = furi_string_size(hex_input);
+            if(hex_size > 0 && hex_size % 2 == 0) {
+                size_t size = hex_size / 2;
+                uint8_t* input = malloc(size);
+                uint8_t* output = malloc(size);
+
+                if(args_read_hex_bytes(hex_input, input, size)) {
+                    if(!furi_hal_crypto_encrypt(input, output, size)) {
+                        printf("Failed to encrypt input");
+                    } else {
+                        printf("Hex-encoded encrypted data:\r\n");
+                        for(size_t i = 0; i < size; i++) {
+                            if(i % 80 == 0) printf("\r\n");
+                            printf("%02X ", output[i]);
+                        }
+                        printf("\r\n");
+                    }
+                } else {
+                    printf("Failed to parse input");
+                }
+
+                free(input);
+                free(output);
+            } else {
+                printf("Invalid or empty input");
+            }
+
+            furi_string_free(hex_input);
+        } else {
+            printf("Incorrect or missing data type, expected plain or hex");
+            break;
+        }
     } while(0);
 
     if(key_loaded) {
@@ -141,8 +201,15 @@ void crypto_cli_decrypt(Cli* cli, FuriString* args) {
 
             if(args_read_hex_bytes(hex_input, input, size)) {
                 if(furi_hal_crypto_decrypt(input, output, size)) {
-                    printf("Decrypted data:\r\n");
+                    printf("Decrypted\r\n");
+                    printf("Ascii:\r\n");
                     printf("%s\r\n", output); //-V576
+                    printf("Hex:\r\n");
+                    for(size_t i = 0; i < size; i++) {
+                        if(i % 80 == 0) printf("\r\n");
+                        printf("%02X ", output[i]);
+                    }
+                    printf("\r\n");
                 } else {
                     printf("Failed to decrypt\r\n");
                 }
