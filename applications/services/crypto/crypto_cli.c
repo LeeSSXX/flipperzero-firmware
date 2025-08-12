@@ -55,15 +55,15 @@ void crypto_cli_encrypt(PipeSide* pipe, FuriString* args) {
             FuriString* input;
             input = furi_string_alloc();
             char c;
-            while(cli_read(cli, (uint8_t*)&c, 1) == 1) {
-                if(c == CliSymbolAsciiETX) {
+            while(pipe_receive(pipe, (uint8_t*)&c, 1) == 1) {
+                if(c == CliKeyETX) {
                     printf("\r\n");
                     break;
                 } else if(c >= 0x20 && c < 0x7F) {
                     putc(c, stdout);
                     fflush(stdout);
                     furi_string_push_back(input, c);
-                } else if(c == CliSymbolAsciiCR) {
+                } else if(c == CliKeyCR) {
                     printf("\r\n");
                     furi_string_cat(input, "\r\n");
                 }
@@ -102,15 +102,15 @@ void crypto_cli_encrypt(PipeSide* pipe, FuriString* args) {
             FuriString* hex_input;
             hex_input = furi_string_alloc();
             char c;
-            while(cli_read(cli, (uint8_t*)&c, 1) == 1) {
-                if(c == CliSymbolAsciiETX) {
+            while(pipe_receive(pipe, (uint8_t*)&c, 1) == 1) {
+                if(c == CliKeyETX) {
                     printf("\r\n");
                     break;
                 } else if(c >= 0x20 && c < 0x7F) {
                     putc(c, stdout);
                     fflush(stdout);
                     furi_string_push_back(hex_input, c);
-                } else if(c == CliSymbolAsciiCR) {
+                } else if(c == CliKeyCR) {
                     printf("\r\n");
                 }
             }
